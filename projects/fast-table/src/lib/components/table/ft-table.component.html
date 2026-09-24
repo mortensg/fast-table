@@ -121,15 +121,19 @@
         </div>
       }
       </div>
-      <div
-        class="ft-hscrollbar-track"
-        [style.marginLeft.px]="columnModel.leftTotalWidth()"
-        [style.marginRight.px]="columnModel.rightTotalWidth() + verticalScrollbarGutter"
-      >
-        <div class="ft-hscrollbar" #hscrollEl (scroll)="onHScroll($event)">
-          <div class="ft-hscrollbar-spacer" [style.width.px]="columnModel.centerTotalWidth()"></div>
+      @if (hasHorizontalOverflow()) {
+        <div
+          class="ft-hscrollbar-track"
+          [class.ft-hscrollbar-track-bordered-left]="columnModel.leftPinned().length > 0"
+          [class.ft-hscrollbar-track-bordered-right]="columnModel.rightPinned().length > 0"
+          [style.marginLeft.px]="columnModel.leftTotalWidth()"
+          [style.marginRight.px]="columnModel.rightTotalWidth() + verticalScrollbarGutter"
+        >
+          <div class="ft-hscrollbar" #hscrollEl (scroll)="onHScroll($event)">
+            <div class="ft-hscrollbar-spacer" [style.width.px]="columnModel.centerTotalWidth()"></div>
+          </div>
         </div>
-      </div>
+      }
     </div>
 
     @if (sidebarOpen()) {

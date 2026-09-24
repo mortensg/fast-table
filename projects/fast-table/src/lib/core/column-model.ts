@@ -120,7 +120,11 @@ export class ColumnModel<TData = any> {
   setWidth(colId: string, width: number): void {
     const col = this.getColumn(colId);
     if (!col) return;
-    const clamped = Math.max(col.minWidth, Math.min(col.maxWidth, width));
+    // Rounded to a whole pixel — callers include drag-resize (fractional
+    // clientX deltas) and autoSizeColumn (canvas measureText returns
+    // fractional widths), and a fractional column width causes sub-pixel
+    // border rendering seams between adjacent header/cell boxes.
+    const clamped = Math.round(Math.max(col.minWidth, Math.min(col.maxWidth, width)));
     col.width.set(clamped);
   }
 
@@ -261,7 +265,11 @@ export class ColumnModel<TData = any> {
 
     for (const col of flexCols) {
       const share = (remaining * (col.flex ?? 0)) / totalFlex;
-      const clamped = Math.max(col.minWidth, Math.min(col.maxWidth, share));
+      // Round to a whole pixel — a fractional width here (e.g. 129.6px) causes
+      // sub-pixel border rendering seams in the header (a faint partial-height
+      // line at the column boundary) since adjacent borders no longer land on
+      // the same device pixel.
+      const clamped = Math.round(Math.max(col.minWidth, Math.min(col.maxWidth, share)));
       if (Math.abs(clamped - col.width()) > 0.5) col.width.set(clamped);
     }
   }

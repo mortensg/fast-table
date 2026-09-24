@@ -384,6 +384,16 @@
   height: 12px;
   overflow: hidden;
 }
+// Continues the pinned-column divider (see .ft-header-pinned-left/right and
+// .ft-row-pinned-left/right) down through the scrollbar row, so the strong
+// border marking "pinned vs. scrollable" reads as one continuous line rather
+// than stopping above the scrollbar.
+.ft-hscrollbar-track-bordered-left {
+  border-left: 2px solid var(--ft-border-strong);
+}
+.ft-hscrollbar-track-bordered-right {
+  border-right: 2px solid var(--ft-border-strong);
+}
 .ft-hscrollbar {
   height: 100%;
   overflow-x: auto;
@@ -432,10 +442,12 @@
   position: relative;
 }
 ::ng-deep .ft-header-pinned-left {
+  border-right: 2px solid var(--ft-border-strong);
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.04);
   z-index: 1;
 }
 ::ng-deep .ft-header-pinned-right {
+  border-left: 2px solid var(--ft-border-strong);
   box-shadow: -2px 0 4px rgba(0, 0, 0, 0.04);
   z-index: 1;
 }
@@ -448,6 +460,11 @@
 ::ng-deep .ft-header-center-inner {
   display: flex;
   position: relative;
+  // .ft-header-center-clip is a plain (non-flex) block container, so this
+  // child otherwise just shrinks to its cells' text-content height instead
+  // of filling the 34px row — unlike the pinned sections, which are flex
+  // items of the row and stretch to it automatically.
+  height: 100%;
 }
 
 ::ng-deep .ft-header-group-cell {
@@ -457,12 +474,14 @@
   font-weight: 590;
   font-size: 12px;
   color: var(--ft-text-muted);
+  // Kept solid even for blank filler cells (.ft-header-group-cell-empty has
+  // no other styling) so every vertical divider is continuous from the group
+  // row down through the column row beneath it — hiding it here previously
+  // left a border that only existed for the bottom half of the header,
+  // reading as a broken, floating line at exactly that column boundary.
   border-right: 1px solid var(--ft-border-color);
   border-bottom: 1px solid var(--ft-border-color);
   box-sizing: border-box;
-}
-::ng-deep .ft-header-group-cell-empty {
-  border-right-color: transparent;
 }
 
 ::ng-deep .ft-header-cell {
@@ -715,20 +734,37 @@
   z-index: 1;
 }
 ::ng-deep .ft-row-pinned-left {
-  position: sticky;
-  left: 0;
+  // .ft-row no longer scrolls horizontally itself (see .ft-row-center-clip
+  // below) so this no longer needs position:sticky to stay put — it's simply
+  // a fixed-width flex child that never moves.
   z-index: 2;
   background: inherit;
+  border-right: 2px solid var(--ft-border-strong);
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.04);
 }
 ::ng-deep .ft-row-pinned-right {
-  position: sticky;
-  right: 0;
   z-index: 2;
   background: inherit;
+  border-left: 2px solid var(--ft-border-strong);
   box-shadow: -2px 0 4px rgba(0, 0, 0, 0.04);
 }
+// Mirrors .ft-header-center-clip/.ft-header-center-inner: the clip is a
+// fixed, viewport-width flex child; the inner .ft-row-center is the full
+// content-width element that gets translated by (windowing offset - live
+// scrollLeft) to move with the dedicated horizontal scrollbar, now that
+// .ft-viewport itself no longer scrolls horizontally.
+::ng-deep .ft-row-center-clip {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
 ::ng-deep .ft-row-center {
+  // Previously inherited display:flex from the shared .ft-row-section class;
+  // that class moved to the new .ft-row-center-clip wrapper around this
+  // element, so without setting it explicitly here too, each <ft-cell> (a
+  // display:contents host around a display:flex div) stacks as its own
+  // block-level line instead of laying out side by side with its siblings.
+  display: flex;
   position: relative;
 }
 

@@ -5,6 +5,7 @@ import { ColumnModel } from '../../core/column-model';
 import { SelectionService } from '../../core/selection-service';
 import { EditingService } from '../../core/editing-service';
 import { ClientSideRowModel } from '../../core/client-side-row-model';
+import { ViewportModel } from '../../core/viewport-model';
 import { FtCellComponent } from '../cell/ft-cell.component';
 import { FtIconComponent } from '../icon/ft-icon.component';
 
@@ -25,7 +26,6 @@ import { FtIconComponent } from '../icon/ft-icon.component';
       [class]="rowClass()"
       [style.transform]="'translateY(' + top() + 'px)'"
       [style.height.px]="height()"
-      [style.width.px]="totalWidth()"
       [style.--ft-i]="staggerIndex() ?? rowIndex()"
       (dragover)="onDragOver($event)"
       (drop)="onDrop($event)"
@@ -46,20 +46,22 @@ import { FtIconComponent } from '../icon/ft-icon.component';
             }
           </div>
         }
-        <div
-          class="ft-row-section ft-row-center"
-          [style.transform]="'translateX(' + centerOffset() + 'px)'"
-          [style.width.px]="centerRenderWidth()"
-        >
-          @for (group of centerCellGroups(); track group.column.colId) {
-            <ft-cell
-              [node]="node()"
-              [column]="group.column"
-              [rowIndex]="rowIndex()"
-              [isGroupDisplayColumn]="isFirstColumn(group.column)"
-              [spanWidth]="group.width"
-            />
-          }
+        <div class="ft-row-section ft-row-center-clip">
+          <div
+            class="ft-row-center"
+            [style.transform]="'translateX(' + (centerOffset() - scrollLeft()) + 'px)'"
+            [style.width.px]="centerRenderWidth()"
+          >
+            @for (group of centerCellGroups(); track group.column.colId) {
+              <ft-cell
+                [node]="node()"
+                [column]="group.column"
+                [rowIndex]="rowIndex()"
+                [isGroupDisplayColumn]="isFirstColumn(group.column)"
+                [spanWidth]="group.width"
+              />
+            }
+          </div>
         </div>
         @if (rightCols().length) {
           <div class="ft-row-section ft-row-pinned-right" [style.width.px]="rightWidth()">
@@ -106,6 +108,9 @@ export class FtRowComponent<TData = any> {
   private selectionService = inject(SelectionService<TData>);
   private editingService = inject(EditingService<TData>);
   private rowModel = inject(ClientSideRowModel<TData>);
+  private viewportModel = inject(ViewportModel<TData>);
+
+  readonly scrollLeft = computed(() => this.viewportModel.scrollLeft());
 
   readonly pressed = signal(false);
 
@@ -149,9 +154,6 @@ export class FtRowComponent<TData = any> {
   readonly rightCols = computed(() => this.columnModel.rightPinned());
   readonly leftWidth = computed(() => this.columnModel.leftTotalWidth());
   readonly rightWidth = computed(() => this.columnModel.rightTotalWidth());
-  readonly totalWidth = computed(
-    () => this.leftWidth() + this.columnModel.centerTotalWidth() + this.rightWidth(),
-  );
   readonly rowClass = computed(() => this.rowClassFn()?.(this.node()) ?? '');
 
   readonly centerCellGroups = computed(() => {

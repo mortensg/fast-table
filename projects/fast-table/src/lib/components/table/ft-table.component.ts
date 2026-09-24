@@ -176,6 +176,16 @@ export class FtTableComponent<TData = any> implements OnInit, AfterViewInit, OnD
   readonly visibleCenterRange = computed(() =>
     this.viewportModel.visibleCenterColumns(this.centerColumns(), this.viewportWidthSig()),
   );
+  /** Whether the center columns actually overflow the space available to
+   *  them — the dedicated hscrollbar only needs to take up room (and only
+   *  needs to exist at all) when there's something to scroll. */
+  readonly hasHorizontalOverflow = computed(() => {
+    const availableCenterWidth = Math.max(
+      0,
+      this.viewportWidthSig() - this.columnModel.leftTotalWidth() - this.columnModel.rightTotalWidth(),
+    );
+    return this.columnModel.centerTotalWidth() > availableCenterWidth;
+  });
 
   readonly pinnedTopRows = computed(() => this.rowModel.pinnedTopNodes());
   readonly pinnedBottomRows = computed(() => this.rowModel.pinnedBottomNodes());

@@ -46,7 +46,6 @@ interface HeaderGroupCell {
               @for (g of leftGroupRow(); track g.key) {
                 <div
                   class="ft-header-group-cell"
-                  [class.ft-header-group-cell-empty]="!g.headerName"
                   [style.width.px]="groupWidth(g)"
                 >
                   {{ g.headerName }}
@@ -63,7 +62,6 @@ interface HeaderGroupCell {
               @for (g of centerGroupRow(); track g.key) {
                 <div
                   class="ft-header-group-cell"
-                  [class.ft-header-group-cell-empty]="!g.headerName"
                   [style.width.px]="groupWidth(g)"
                 >
                   {{ g.headerName }}
@@ -76,7 +74,6 @@ interface HeaderGroupCell {
               @for (g of rightGroupRow(); track g.key) {
                 <div
                   class="ft-header-group-cell"
-                  [class.ft-header-group-cell-empty]="!g.headerName"
                   [style.width.px]="groupWidth(g)"
                 >
                   {{ g.headerName }}
