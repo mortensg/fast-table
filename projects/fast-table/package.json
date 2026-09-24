@@ -1,0 +1,24 @@
+{
+  "name": "fast-table",
+  "version": "0.1.0",
+  "description": "A blazing-fast, signal-based Angular data table with virtualization, grouping, pivoting, formulas, and enterprise-grade features — framework-agnostic in spirit, built for Angular.",
+  "keywords": [
+    "angular",
+    "table",
+    "grid",
+    "data-grid",
+    "data-table",
+    "virtual-scroll",
+    "pivot",
+    "signals"
+  ],
+  "peerDependencies": {
+    "@angular/common": "^22.1.0",
+    "@angular/core": "^22.1.0",
+    "@angular/forms": "^22.1.0"
+  },
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "sideEffects": false
+}

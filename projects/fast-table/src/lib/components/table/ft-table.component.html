@@ -1,0 +1,177 @@
+<div class="ft-root" [attr.dir]="rtl() ? 'rtl' : 'ltr'">
+  @if (showToolbar()) {
+    <ft-toolbar
+      (exportCsv)="api.exportDataAsCsv()"
+      (exportExcel)="api.exportDataAsExcel()"
+      (exportPdf)="api.exportDataAsPdf({ title: 'fast-table export' })"
+      (toggleColumns)="toggleSidebar('columns')"
+      (toggleFilters)="toggleSidebar('filters')"
+      (toggleAdvancedFilter)="toggleAdvancedFilter()"
+    />
+  }
+
+  <div class="ft-body-wrapper">
+    <div class="ft-grid-scroll-region">
+      <ft-header />
+      <div
+        class="ft-viewport"
+        #viewportEl
+        (scroll)="onScroll($event)"
+        (keydown)="onKeydown($event)"
+        (wheel)="onWheel($event)"
+        tabindex="0"
+        role="grid"
+      >
+      @if (pinnedTopRows().length) {
+        <div class="ft-pinned-rows ft-pinned-rows-top">
+          @for (node of pinnedTopRows(); track node.id; let i = $index) {
+            <ft-row
+              [node]="node"
+              [rowIndex]="i"
+              [staggerIndex]="i"
+              [top]="i * viewportModel.defaultRowHeight"
+              [height]="viewportModel.defaultRowHeight"
+              [centerCols]="visibleCenterRange().columns"
+              [centerOffset]="visibleCenterRange().offsetLeft"
+              [centerRenderWidth]="columnModel.centerTotalWidth() - visibleCenterRange().offsetLeft"
+              [rowClassFn]="rowClassFn"
+              (click)="onRowClick(node, $event)"
+            />
+          }
+        </div>
+      }
+
+      <div class="ft-body-canvas" [style.height.px]="totalHeight()">
+        @for (row of visibleLayout(); track row.node.id; let i = $index) {
+          @if (row.node.isDetailRow) {
+            <div
+              class="ft-detail-row"
+              [style.transform]="'translateY(' + row.top + 'px)'"
+              [style.height.px]="row.height"
+            >
+              @if (masterDetailConfig; as cfg) {
+                <ft-table
+                  [columnDefs]="cfg.detailColDefs"
+                  [rowData]="getDetailData(row.node.masterNode!)"
+                  [showToolbar]="false"
+                />
+              }
+            </div>
+          } @else if (isFullWidthRow(row.node)) {
+            <div
+              class="ft-full-width-row"
+              [style.transform]="'translateY(' + row.top + 'px)'"
+              [style.height.px]="row.height"
+            >
+              @if (fullWidthRendererType(); as renderer) {
+                <ng-container
+                  [ngComponentOutlet]="renderer"
+                  [ngComponentOutletInputs]="{ params: fullWidthParams(row.node) }"
+                />
+              }
+            </div>
+          } @else {
+            <ft-row
+              [node]="row.node"
+              [rowIndex]="row.node.rowIndex ?? 0"
+              [staggerIndex]="i"
+              [top]="row.top"
+              [height]="row.height"
+              [centerCols]="visibleCenterRange().columns"
+              [centerOffset]="visibleCenterRange().offsetLeft"
+              [centerRenderWidth]="columnModel.centerTotalWidth() - visibleCenterRange().offsetLeft"
+              [rowClassFn]="rowClassFn"
+              (click)="onRowClick(row.node, $event)"
+            />
+          }
+        }
+      </div>
+
+      @if (pinnedBottomRows().length) {
+        <div class="ft-pinned-rows ft-pinned-rows-bottom">
+          @for (node of pinnedBottomRows(); track node.id; let i = $index) {
+            <ft-row
+              [node]="node"
+              [rowIndex]="i"
+              [staggerIndex]="i"
+              [top]="i * viewportModel.defaultRowHeight"
+              [height]="viewportModel.defaultRowHeight"
+              [centerCols]="visibleCenterRange().columns"
+              [centerOffset]="visibleCenterRange().offsetLeft"
+              [centerRenderWidth]="columnModel.centerTotalWidth() - visibleCenterRange().offsetLeft"
+              [rowClassFn]="rowClassFn"
+              (click)="onRowClick(node, $event)"
+            />
+          }
+        </div>
+      }
+
+      @if (isEmpty()) {
+        <ft-overlay-no-rows />
+      }
+      @if (loading() || infiniteLoader.loading()) {
+        <ft-overlay-loading />
+      }
+      @if (showDebugOverlay) {
+        <div class="ft-debug-overlay">
+          vpW={{ viewportWidthSig() }} vpH={{ viewportModel.viewportHeight() }}
+          | rows={{ allRows().length }} paged={{ pagedRows().length }} visible={{ visibleLayout().length }}
+          | cols={{ centerColumns().length }} visibleCols={{ visibleCenterRange().columns.length }}
+          | page={{ currentPage() }}/{{ pageCount() }} size={{ pageSize() }}
+        </div>
+      }
+      </div>
+      <div
+        class="ft-hscrollbar-track"
+        [style.marginLeft.px]="columnModel.leftTotalWidth()"
+        [style.marginRight.px]="columnModel.rightTotalWidth() + verticalScrollbarGutter"
+      >
+        <div class="ft-hscrollbar" #hscrollEl (scroll)="onHScroll($event)">
+          <div class="ft-hscrollbar-spacer" [style.width.px]="columnModel.centerTotalWidth()"></div>
+        </div>
+      </div>
+    </div>
+
+    @if (sidebarOpen()) {
+      <ft-sidebar [panel]="sidebarOpen()" />
+    }
+  </div>
+
+  <ft-status-bar />
+
+  @if (paginationEnabled()) {
+    <ft-pagination-bar
+      [currentPage]="currentPage()"
+      [pageCount]="pageCount()"
+      [pageSize]="pageSize()"
+      (pageChange)="goToPage($event)"
+      (pageSizeChange)="setPageSize($event)"
+    />
+  }
+
+  @if (contextMenuService.state(); as menu) {
+    <ft-context-menu [state]="menu" (action)="onContextMenuAction($event)" />
+  }
+
+  @if (chartData(); as data) {
+    <div class="ft-chart-overlay">
+      <ft-chart
+        [data]="data"
+        [type]="chartType()"
+        (typeChange)="chartType.set($event)"
+        (closed)="closeChart()"
+      />
+    </div>
+  }
+
+  @if (advancedFilterOpen()) {
+    <div class="ft-chart-overlay">
+      <ft-advanced-filter-builder
+        [model]="advancedFilterDraft()"
+        (apply)="applyAdvancedFilter($event)"
+        (cleared)="clearAdvancedFilter()"
+        (closed)="advancedFilterOpen.set(false)"
+      />
+    </div>
+  }
+</div>

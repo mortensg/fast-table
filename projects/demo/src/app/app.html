@@ -1,0 +1,58 @@
+<div class="demo-shell">
+  <nav class="demo-sidebar">
+    <div class="demo-logo">
+      <span class="demo-logo-mark">⚡</span>
+      <span>fast-table</span>
+    </div>
+    <ul class="demo-nav-list">
+      @for (section of sections; track section.id) {
+        <li>
+          <button class="demo-nav-item" [class.active]="active() === section.id" (click)="select(section.id)">
+            {{ section.label }}
+          </button>
+        </li>
+      }
+    </ul>
+  </nav>
+
+  <main class="demo-content">
+    @switch (active()) {
+      @case ('basics') {
+        <demo-basics />
+      }
+      @case ('editing') {
+        <demo-editing />
+      }
+      @case ('grouping') {
+        <demo-grouping />
+      }
+      @case ('masterDetail') {
+        <demo-master-detail />
+      }
+      @case ('pivot') {
+        <demo-pivot />
+      }
+      @case ('formulas') {
+        <demo-formulas />
+      }
+      @case ('selection') {
+        <demo-selection />
+      }
+      @case ('charts') {
+        <demo-charts />
+      }
+      @case ('export') {
+        <demo-export />
+      }
+      @case ('largeData') {
+        <demo-large-data />
+      }
+      @case ('alignedGrids') {
+        <demo-aligned-grids />
+      }
+      @case ('misc') {
+        <demo-misc />
+      }
+    }
+  </main>
+</div>
