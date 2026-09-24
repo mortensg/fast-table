@@ -1,10 +1,14 @@
 import {
   Component,
   ChangeDetectionStrategy,
+  DestroyRef,
+  ElementRef,
+  Injector,
+  afterNextRender,
   computed,
+  effect,
   inject,
   signal,
-  HostListener,
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { Column } from '../../core/column';
@@ -18,6 +22,8 @@ import { FloatingFilterComponent } from '../../features/filtering/floating-filte
 import { FilterPopoverComponent } from '../../features/filtering/filter-popover.component';
 import { isColumnGroupDef, type ColumnGroupDef, type ColDef } from '../../models/column-def';
 import { FtIconComponent } from '../icon/ft-icon.component';
+
+const COLUMN_MOVE_ANIMATION = 'ft-column-move';
 
 interface HeaderGroupCell {
   key: string;
@@ -83,7 +89,11 @@ interface HeaderGroupCell {
 
       <div class="ft-header-row ft-header-columns-row">
         @if (leftCols().length) {
-          <div class="ft-header-section ft-header-pinned-left" [style.width.px]="leftWidth()">
+          <div
+            class="ft-header-section ft-header-pinned-left"
+            data-section="left"
+            [style.width.px]="leftWidth()"
+          >
             @for (col of leftCols(); track col.colId) {
               <ng-container [ngTemplateOutlet]="headerCellTpl" [ngTemplateOutletContext]="{ $implicit: col }" />
             }
@@ -92,6 +102,7 @@ interface HeaderGroupCell {
         <div class="ft-header-center-clip">
           <div
             class="ft-header-center-inner"
+            data-section="center"
             [style.width.px]="centerTotalWidth()"
             [style.transform]="'translateX(' + -scrollLeft() + 'px)'"
           >
@@ -101,7 +112,11 @@ interface HeaderGroupCell {
           </div>
         </div>
         @if (rightCols().length) {
-          <div class="ft-header-section ft-header-pinned-right" [style.width.px]="rightWidth()">
+          <div
+            class="ft-header-section ft-header-pinned-right"
+            data-section="right"
+            [style.width.px]="rightWidth()"
+          >
             @for (col of rightCols(); track col.colId) {
               <ng-container [ngTemplateOutlet]="headerCellTpl" [ngTemplateOutletContext]="{ $implicit: col }" />
             }
@@ -151,10 +166,10 @@ interface HeaderGroupCell {
         [class]="headerClassOf(col)"
         [class.ft-resizing]="resizingColId() === col.colId"
         [class.ft-header-sorted]="!!col.sort()"
+        [class.ft-col-drag-placeholder]="draggingColId() === col.colId"
+        [attr.data-col-id]="col.colId"
         draggable="true"
         (dragstart)="onDragStart($event, col)"
-        (dragover)="onDragOver($event)"
-        (drop)="onDrop($event, col)"
       >
         @if (col.colDef.headerCheckboxSelection) {
           <input
@@ -221,7 +236,12 @@ interface HeaderGroupCell {
     </ng-template>
 
     <ng-template #floatingFilterTpl let-col>
-      <div class="ft-floating-filter-cell" [style.width.px]="col.width()">
+      <div
+        class="ft-floating-filter-cell"
+        [class.ft-col-drag-placeholder]="draggingColId() === col.colId"
+        [attr.data-col-id]="col.colId"
+        [style.width.px]="col.width()"
+      >
         @if (col.colDef.floatingFilter && col.isFilterable()) {
           <ft-floating-filter [column]="col" />
         }
@@ -236,6 +256,8 @@ export class FtHeaderComponent<TData = any> {
   private valueService = inject(ValueService<TData>);
   private filterService = inject(FilterService<TData>);
   private viewportModel = inject(ViewportModel<TData>);
+  private host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private injector = inject(Injector);
 
   hasActiveFilter(col: Column<TData>): boolean {
     return !!this.filterService.filterModel()[col.colId];
@@ -243,7 +265,11 @@ export class FtHeaderComponent<TData = any> {
 
   readonly openFilterColId = signal<string | null>(null);
   readonly resizingColId = signal<string | null>(null);
-  private draggingColId: string | null = null;
+  readonly draggingColId = this.columnModel.draggingColId;
+  /** Active header drag: the column order is reordered *live* while the
+   *  pointer moves so the real grid previews the drop, and restored from
+   *  `originalOrder` if the drag is cancelled (Esc / released outside). */
+  private dragSession: { colId: string; originalOrder: string[] } | null = null;
   private resizing: { col: Column<TData>; startX: number; startWidth: number } | null = null;
 
   readonly leftCols = computed(() => this.columnModel.leftPinned());
@@ -278,6 +304,33 @@ export class FtHeaderComponent<TData = any> {
     }
     return map;
   });
+
+  /** Changes whenever a column changes slot — reorder, pin, show/hide — but
+   *  not on width or scroll changes, so only real moves get animated. */
+  private readonly columnLayoutKey = computed(() =>
+    [this.leftCols(), this.centerCols(), this.rightCols()]
+      .map((section) => section.map((c) => c.colId).join(','))
+      .join('|'),
+  );
+
+  constructor() {
+    let previousKey: string | undefined;
+    // Component effects run before this component's template is refreshed,
+    // so the header cells still sit in their *old* slots here — that is the
+    // "First" of a FLIP animation. The "Last" is read after the next render.
+    effect(() => {
+      const key = this.columnLayoutKey();
+      if (previousKey === undefined || previousKey === key) {
+        previousKey = key;
+        return;
+      }
+      previousKey = key;
+      const first = this.measureHeaderCellLefts();
+      afterNextRender({ read: () => this.playColumnMoveAnimation(first) }, { injector: this.injector });
+    });
+
+    inject(DestroyRef).onDestroy(() => this.endDrag());
+  }
 
   readonly showGroupRow = computed(() => this.columnModel.groupDefs.some(isColumnGroupDef));
 
@@ -359,22 +412,169 @@ export class FtHeaderComponent<TData = any> {
   }
 
   onDragStart(event: DragEvent, col: Column<TData>): void {
-    this.draggingColId = col.colId;
-    event.dataTransfer?.setData('text/plain', col.colId);
+    const cell = event.currentTarget as HTMLElement;
+    // A nested drag (e.g. selected text in the filter popover) isn't a column move.
+    if (event.target !== cell) return;
+    this.endDrag();
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', col.colId);
+      const rect = cell.getBoundingClientRect();
+      event.dataTransfer.setDragImage(cell, event.clientX - rect.left, event.clientY - rect.top);
+    }
+    this.dragSession = {
+      colId: col.colId,
+      originalOrder: this.columnModel.columns().map((c) => c.colId),
+    };
+    // The drag source can be moved around the DOM by the live reorder, so
+    // listen at the document level rather than on individual header cells.
+    document.addEventListener('dragenter', this.onDocumentDragEnter, true);
+    document.addEventListener('dragover', this.onDocumentDragOver, true);
+    document.addEventListener('drop', this.onDocumentDrop, true);
+    document.addEventListener('dragend', this.onDocumentDragEnd, true);
+    // Defer the placeholder styling until the browser has snapshotted the
+    // drag image, so the ghost under the cursor shows the real header.
+    setTimeout(() => {
+      if (this.dragSession?.colId === col.colId) this.draggingColId.set(col.colId);
+    });
   }
 
-  onDragOver(event: DragEvent): void {
+  // Both dragenter and dragover must be cancelled for the grid to count as
+  // a drop target — otherwise the browser never fires `drop`.
+  private onDocumentDragEnter = (event: DragEvent): void => {
+    if (this.dragSession && this.isInsideGrid(event.target)) event.preventDefault();
+  };
+
+  private onDocumentDragOver = (event: DragEvent): void => {
+    if (!this.dragSession || !this.isInsideGrid(event.target)) return;
     event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    this.previewColumnMove(event.clientX);
+  };
+
+  private onDocumentDrop = (event: DragEvent): void => {
+    if (!this.dragSession || !this.isInsideGrid(event.target)) return;
+    event.preventDefault();
+    // The column is already in its previewed slot — dropping just keeps it.
+    this.endDrag();
+  };
+
+  private onDocumentDragEnd = (): void => {
+    // Reaching dragend with a live session means no drop happened inside
+    // the grid (Esc, or released elsewhere): put every column back.
+    if (this.dragSession) this.columnModel.setColumnOrder(this.dragSession.originalOrder);
+    this.endDrag();
+  };
+
+  private endDrag(): void {
+    this.dragSession = null;
+    this.draggingColId.set(null);
+    document.removeEventListener('dragenter', this.onDocumentDragEnter, true);
+    document.removeEventListener('dragover', this.onDocumentDragOver, true);
+    document.removeEventListener('drop', this.onDocumentDrop, true);
+    document.removeEventListener('dragend', this.onDocumentDragEnd, true);
   }
 
-  onDrop(event: DragEvent, targetCol: Column<TData>): void {
-    event.preventDefault();
-    const sourceId = this.draggingColId ?? event.dataTransfer?.getData('text/plain');
-    if (!sourceId || sourceId === targetCol.colId) return;
-    const cols = this.columnModel.columns();
-    const toIndex = cols.findIndex((c) => c.colId === targetCol.colId);
-    this.columnModel.moveColumn(sourceId, toIndex);
-    this.draggingColId = null;
+  private isInsideGrid(target: EventTarget | null): boolean {
+    const hostEl = this.host.nativeElement;
+    const region = hostEl.closest('.ft-grid-scroll-region') ?? hostEl;
+    return target instanceof Node && region.contains(target);
+  }
+
+  /** Moves the dragged column to the slot under `clientX` within its own
+   *  (pinned/center) section. Uses the section's model widths rather than
+   *  the cells' rects, so cells still mid-animation can't make it jitter. */
+  private previewColumnMove(clientX: number): void {
+    const colId = this.dragSession!.colId;
+    const dragged = this.columnModel.getColumn(colId);
+    if (!dragged) return;
+    const pinned = dragged.pinned();
+    const section = pinned === 'left' ? 'left' : pinned === 'right' ? 'right' : 'center';
+    const cols =
+      section === 'left' ? this.leftCols() : section === 'right' ? this.rightCols() : this.centerCols();
+    const container = this.host.nativeElement.querySelector<HTMLElement>(
+      `.ft-header-columns-row [data-section="${section}"]`,
+    );
+    if (!container || cols.length < 2) return;
+
+    const rect = container.getBoundingClientRect();
+    const rtl = getComputedStyle(container).direction === 'rtl';
+    const x = rtl ? rect.right - clientX : clientX - rect.left;
+    let left = 0;
+    for (let i = 0; i < cols.length; i++) {
+      const width = cols[i].width();
+      if (x < left + width || i === cols.length - 1) {
+        const target = cols[i];
+        if (target.colId === colId) return;
+        const position = x < left + width / 2 ? 'before' : 'after';
+        this.columnModel.moveColumnNextTo(colId, target.colId, position);
+        return;
+      }
+      left += width;
+    }
+  }
+
+  private measureHeaderCellLefts(): Map<string, number> {
+    const lefts = new Map<string, number>();
+    for (const el of this.headerCells()) {
+      lefts.set(el.dataset['colId']!, el.getBoundingClientRect().left);
+    }
+    return lefts;
+  }
+
+  private headerCells(): HTMLElement[] {
+    return Array.from(
+      this.host.nativeElement.querySelectorAll<HTMLElement>(
+        '.ft-header-columns-row .ft-header-cell[data-col-id]',
+      ),
+    );
+  }
+
+  /** FLIP: every header, floating-filter and body cell of a column that
+   *  changed slot starts at its old x and glides to the new one on the
+   *  grid's spring curve. Columns that just appeared fade in instead. */
+  private playColumnMoveAnimation(first: Map<string, number>): void {
+    const hostEl = this.host.nativeElement;
+    const root = hostEl.closest<HTMLElement>('.ft-root') ?? hostEl;
+    if (typeof root.animate !== 'function') return;
+
+    const byColId = new Map<string, HTMLElement[]>();
+    for (const el of Array.from(root.querySelectorAll<HTMLElement>('[data-col-id]'))) {
+      // Skip cells of nested (master/detail) grids.
+      if ((el.closest('.ft-root') ?? hostEl) !== root) continue;
+      for (const anim of el.getAnimations()) if (anim.id === COLUMN_MOVE_ANIMATION) anim.cancel();
+      const colId = el.dataset['colId']!;
+      const list = byColId.get(colId);
+      if (list) list.push(el);
+      else byColId.set(colId, [el]);
+    }
+
+    const timing = this.columnMoveTiming();
+    for (const cell of this.headerCells()) {
+      const colId = cell.dataset['colId']!;
+      const els = byColId.get(colId) ?? [];
+      const from = first.get(colId);
+      let keyframes: Keyframe[];
+      if (from === undefined) {
+        keyframes = [{ opacity: 0 }, { opacity: 1 }];
+      } else {
+        const dx = from - cell.getBoundingClientRect().left;
+        if (Math.abs(dx) < 0.5) continue;
+        keyframes = [{ transform: `translateX(${dx}px)` }, { transform: 'translateX(0)' }];
+      }
+      for (const el of els) el.animate(keyframes, timing).id = COLUMN_MOVE_ANIMATION;
+    }
+  }
+
+  private columnMoveTiming(): KeyframeAnimationOptions {
+    const style = getComputedStyle(this.host.nativeElement);
+    const rawDuration = style.getPropertyValue('--ft-duration-snappy').trim();
+    const parsed = parseFloat(rawDuration);
+    const duration = isNaN(parsed) ? 300 : rawDuration.endsWith('ms') ? parsed : parsed * 1000;
+    const rawEasing = style.getPropertyValue('--ft-ease-snappy').trim();
+    const easing =
+      rawEasing && CSS.supports?.('animation-timing-function', rawEasing) ? rawEasing : 'ease-out';
+    return { duration, easing };
   }
 
   onResizeStart(event: MouseEvent, col: Column<TData>): void {

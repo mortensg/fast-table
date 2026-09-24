@@ -487,6 +487,9 @@
     width var(--ft-duration-snappy) var(--ft-ease-snappy),
     background-color var(--ft-duration-gentle) var(--ft-ease-gentle);
 }
+::ng-deep .ft-header-cell[draggable='true'] {
+  cursor: grab;
+}
 ::ng-deep .ft-header-cell.ft-resizing {
   // Direct manipulation is truthful to the material: while the user's
   // finger is on the handle, width tracks the cursor 1:1 — physics resumes
@@ -1789,4 +1792,37 @@
   border-radius: 4px;
   pointer-events: none;
   white-space: pre;
+}
+
+// Column drag placeholder — while a header is dragged the column is
+// reordered live, and every cell of it (header, floating filter, body)
+// becomes a full-width, tinted slot showing exactly where it will land.
+::ng-deep .ft-header-cell.ft-col-drag-placeholder,
+::ng-deep .ft-floating-filter-cell.ft-col-drag-placeholder,
+::ng-deep .ft-cell.ft-col-drag-placeholder {
+  // Opaque base so neighbours gliding past mid-animation don't show through.
+  background: linear-gradient(rgba(var(--ft-accent-rgb), 0.09), rgba(var(--ft-accent-rgb), 0.09)),
+    var(--ft-surface);
+  box-shadow:
+    inset 1px 0 0 rgba(var(--ft-accent-rgb), 0.45),
+    inset -1px 0 0 rgba(var(--ft-accent-rgb), 0.45);
+  color: var(--ft-text-muted);
+}
+::ng-deep .ft-header-cell.ft-col-drag-placeholder {
+  cursor: grabbing;
+  box-shadow:
+    inset 1px 0 0 rgba(var(--ft-accent-rgb), 0.45),
+    inset -1px 0 0 rgba(var(--ft-accent-rgb), 0.45),
+    inset 0 2px 0 var(--ft-accent);
+}
+::ng-deep .ft-header-cell.ft-col-drag-placeholder::after {
+  transform: scaleX(0);
+}
+// :where() keeps this at zero specificity so children with their own
+// transitions (comment marker, buttons) keep them.
+::ng-deep :where(.ft-header-cell, .ft-floating-filter-cell, .ft-cell) > * {
+  transition: opacity var(--ft-duration-swift) var(--ft-ease-swift);
+}
+::ng-deep .ft-col-drag-placeholder > * {
+  opacity: 0.35;
 }
