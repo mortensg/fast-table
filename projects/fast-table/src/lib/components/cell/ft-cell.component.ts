@@ -78,6 +78,8 @@ const BUILT_IN_RENDERERS: Record<string, any> = {
       [class.ft-range-right]="boundary()?.right"
       [class.ft-cell-flash]="justUpdated()"
       [class.ft-cell-invalid]="hasValidationError()"
+      [class.ft-col-drag-placeholder]="isDragPlaceholder()"
+      [attr.data-col-id]="column().colId"
       [attr.title]="validationErrorMessage()"
       [class]="extraClass()"
       [style]="extraStyle()"
@@ -206,6 +208,10 @@ export class FtCellComponent<TData = any> {
       this.flashTimer = setTimeout(() => this.justUpdated.set(false), 650);
     });
   }
+
+  readonly isDragPlaceholder = computed(
+    () => this.columnModel.draggingColId() === this.column().colId,
+  );
 
   readonly hasComment = computed(
     () =>

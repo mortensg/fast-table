@@ -27,6 +27,9 @@ export class ColumnModel<TData = any> {
     [],
   );
   readonly viewportWidth = signal(0);
+  /** colId of the column currently being dragged in the header, if any —
+   *  its header, floating-filter and body cells render as a placeholder. */
+  readonly draggingColId = signal<string | null>(null);
 
   readonly columns: Signal<Column<TData>[]> = this._columns.asReadonly();
 
@@ -136,6 +139,33 @@ export class ColumnModel<TData = any> {
     const [col] = cols.splice(fromIndex, 1);
     cols.splice(toIndex, 0, col);
     this._columns.set(cols);
+  }
+
+  /** Moves `colId` so it sits directly before/after `targetColId` in the
+   *  column order. Returns false (and leaves the order untouched) when the
+   *  column is already in that slot — callers driving a live drag preview
+   *  rely on that to avoid re-rendering on every dragover tick. */
+  moveColumnNextTo(colId: string, targetColId: string, position: 'before' | 'after'): boolean {
+    if (colId === targetColId) return false;
+    const cols = [...this._columns()];
+    const fromIndex = cols.findIndex((c) => c.colId === colId);
+    if (fromIndex === -1) return false;
+    const [col] = cols.splice(fromIndex, 1);
+    const targetIndex = cols.findIndex((c) => c.colId === targetColId);
+    if (targetIndex === -1) return false;
+    const toIndex = position === 'before' ? targetIndex : targetIndex + 1;
+    if (toIndex === fromIndex) return false;
+    cols.splice(toIndex, 0, col);
+    this._columns.set(cols);
+    return true;
+  }
+
+  /** Restores a column order captured earlier (e.g. when a drag is cancelled). */
+  setColumnOrder(colIds: string[]): void {
+    const byId = new Map(this._columns().map((c) => [c.colId, c]));
+    const ordered = colIds.map((id) => byId.get(id)).filter((c): c is Column<TData> => !!c);
+    for (const c of this._columns()) if (!colIds.includes(c.colId)) ordered.push(c);
+    this._columns.set(ordered);
   }
 
   setRowGroup(colId: string, active: boolean): void {
