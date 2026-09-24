@@ -121,24 +121,26 @@
         </div>
       }
       </div>
-      <div class="ft-hscrollbar-track">
-        @if (columnModel.leftTotalWidth()) {
-          <div
-            class="ft-hscrollbar-pinned ft-hscrollbar-pinned-left"
-            [style.width.px]="columnModel.leftTotalWidth()"
-          ></div>
-        }
-        <div class="ft-hscrollbar" #hscrollEl (scroll)="onHScroll($event)">
-          <div class="ft-hscrollbar-spacer" [style.width.px]="columnModel.centerTotalWidth()"></div>
+      @if (hasHorizontalOverflow()) {
+        <div class="ft-hscrollbar-track">
+          @if (columnModel.leftTotalWidth()) {
+            <div
+              class="ft-hscrollbar-pinned ft-hscrollbar-pinned-left"
+              [style.width.px]="columnModel.leftTotalWidth()"
+            ></div>
+          }
+          <div class="ft-hscrollbar" #hscrollEl (scroll)="onHScroll($event)">
+            <div class="ft-hscrollbar-spacer" [style.width.px]="columnModel.centerTotalWidth()"></div>
+          </div>
+          @if (columnModel.rightTotalWidth()) {
+            <div
+              class="ft-hscrollbar-pinned ft-hscrollbar-pinned-right"
+              [style.width.px]="columnModel.rightTotalWidth()"
+            ></div>
+          }
+          <div class="ft-hscrollbar-gutter" [style.width.px]="verticalScrollbarGutter()"></div>
         </div>
-        @if (columnModel.rightTotalWidth()) {
-          <div
-            class="ft-hscrollbar-pinned ft-hscrollbar-pinned-right"
-            [style.width.px]="columnModel.rightTotalWidth()"
-          ></div>
-        }
-        <div class="ft-hscrollbar-gutter" [style.width.px]="verticalScrollbarGutter()"></div>
-      </div>
+      }
     </div>
 
     @if (sidebarOpen()) {
