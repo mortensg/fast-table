@@ -126,10 +126,12 @@ export class FtTableComponent<TData = any> implements OnInit, AfterViewInit, OnD
 
   readonly viewportEl = viewChild<ElementRef<HTMLDivElement>>('viewportEl');
   readonly hscrollEl = viewChild<ElementRef<HTMLDivElement>>('hscrollEl');
-  /** Matches the explicit ::-webkit-scrollbar width set on .ft-viewport — the
-   *  pinned-right column sits inset by that gutter, so .ft-hscrollbar-track's
-   *  right margin needs the same offset to keep its edge aligned with it. */
-  readonly verticalScrollbarGutter = 10;
+  /** Width of .ft-viewport's vertical scrollbar, measured rather than assumed:
+   *  `scrollbar-width: thin` overrides the ::-webkit-scrollbar size in modern
+   *  browsers, and overlay scrollbars (macOS) take no space at all. The
+   *  scrollbar row reserves the same gutter so its pinned-right filler lines
+   *  up with the pinned-right cells above it. */
+  readonly verticalScrollbarGutter = signal(0);
 
   readonly currentPage = signal(0);
   readonly pageSize = signal(100);
@@ -293,6 +295,7 @@ export class FtTableComponent<TData = any> implements OnInit, AfterViewInit, OnD
       const measure = () => {
         this.viewportModel.viewportHeight.set(el.clientHeight);
         this.viewportWidthSig.set(el.clientWidth);
+        this.verticalScrollbarGutter.set(el.offsetWidth - el.clientWidth);
       };
       measure();
       const raf1 = requestAnimationFrame(() => {

@@ -1,3 +1,9 @@
+// Separator + soft shadow on the left edge of every pinned-right section
+// (header, rows, scrollbar row) so that edge is drawn identically everywhere.
+$ft-pinned-right-edge:
+  inset 1px 0 0 var(--ft-border-color),
+  -2px 0 4px rgba(0, 0, 0, 0.04);
+
 :host {
   display: block;
   height: 100%;
@@ -374,20 +380,43 @@
   outline: none;
 }
 
-// A slim, dedicated horizontal scrollbar sitting between the pinned column
-// widths (via the left/right margin below) so its track visually starts and
-// ends at the same edges as the center section, instead of the native
-// scrollbar spanning the whole grid width the way a single scrolling
-// container's would.
+// A slim, dedicated horizontal scrollbar row. Its track runs only under the
+// center section; under the pinned sections sit fillers that carry the same
+// separator line and shadow as the pinned cells above, so the pinned column
+// edges run unbroken from the header down through this row, and a top border
+// closes the grid off above it.
 .ft-hscrollbar-track {
   flex-shrink: 0;
+  display: flex;
   height: 12px;
   overflow: hidden;
+  border-top: 1px solid var(--ft-border-color);
+  background: var(--ft-row-bg);
 }
 .ft-hscrollbar {
+  flex: 1;
+  min-width: 0;
   height: 100%;
   overflow-x: auto;
   overflow-y: hidden;
+}
+.ft-hscrollbar-pinned {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+}
+// Same x as the pinned-left cells' right border (the cell's border-right sits
+// on the section's last pixel).
+.ft-hscrollbar-pinned-left {
+  border-right: 1px solid var(--ft-border-color);
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.04);
+}
+.ft-hscrollbar-pinned-right {
+  box-shadow: $ft-pinned-right-edge;
+}
+.ft-hscrollbar-gutter {
+  flex-shrink: 0;
 }
 .ft-hscrollbar-spacer {
   height: 1px;
@@ -436,7 +465,7 @@
   z-index: 1;
 }
 ::ng-deep .ft-header-pinned-right {
-  box-shadow: -2px 0 4px rgba(0, 0, 0, 0.04);
+  box-shadow: $ft-pinned-right-edge;
   z-index: 1;
 }
 ::ng-deep .ft-header-center-clip {
@@ -701,6 +730,10 @@
   flex: 1;
   min-width: 0;
   position: relative;
+  // Passes the row's (alt/hover/selected) background down to the pinned
+  // sections' `background: inherit`, so they cover center cells scrolling
+  // underneath instead of letting them show through.
+  background: inherit;
   transform: scale(1);
   transform-origin: center;
   transition: transform var(--ft-duration-elastic) var(--ft-ease-elastic);
@@ -726,7 +759,16 @@
   right: 0;
   z-index: 2;
   background: inherit;
-  box-shadow: -2px 0 4px rgba(0, 0, 0, 0.04);
+  box-shadow: $ft-pinned-right-edge;
+}
+// The pinned-right section draws its own left separator (above), so the last
+// center column's right border would double it up once scrolled to the end.
+::ng-deep .ft-row-center:has(+ .ft-row-pinned-right) > ft-cell:last-child > .ft-cell,
+::ng-deep
+  .ft-header-center-clip:has(+ .ft-header-pinned-right)
+  .ft-header-center-inner
+  > :last-child {
+  border-right-color: transparent;
 }
 ::ng-deep .ft-row-center {
   position: relative;
